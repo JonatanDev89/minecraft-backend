@@ -160,34 +160,39 @@ async function atualizarTudo() {
   if (!currentServer) return;
 
   try {
-    const res = await fetch(`${URL}minecraft-server/${encodeURIComponent(currentServer)}`);
-    const data = await res.json();
+    // 1️⃣ Status do servidor
+    const statusRes = await fetch(`${URL}minecraft-players/${encodeURIComponent(currentServer)}`);
+    const statusData = await statusRes.json();
+    document.getElementById("players-online").textContent = statusData.online || 0;
+    document.getElementById("server-uptime").textContent = statusData.uptime || "0h";
+    document.getElementById("server-tps").textContent = statusData.tps || 20;
 
-    // Info cards
-    document.getElementById("players-online").textContent = data.online || 0;
-    document.getElementById("server-uptime").textContent = data.uptime || "0h";
-    document.getElementById("server-tps").textContent = data.tps || 20;
-    document.getElementById("total-bans").textContent = data.bans || 0;
-
-    // Top players
-    document.getElementById("top1").textContent = data.topPlayers[0]?.name || "---";
-    document.getElementById("top2").textContent = data.topPlayers[1]?.name || "---";
-    document.getElementById("top3").textContent = data.topPlayers[2]?.name || "---";
-
-    // Ban list
+    // 2️⃣ Ban list
+    const banRes = await fetch(`${URL}minecraft-banir/${encodeURIComponent(currentServer)}`);
+    const bans = await banRes.json();
+    document.getElementById("total-bans").textContent = bans.length;
     const tbody = document.getElementById("blacklist");
     tbody.innerHTML = "";
-    (data.banList || []).forEach(b => {
+    bans.forEach(b => {
       const tr = document.createElement("tr");
       const d = new Date(b.timestamp);
       tr.innerHTML = `<td>${b.gamerTag}</td><td>${b.motivo}</td><td>${b.executor}</td><td>${d.toLocaleString('pt-BR')}</td>`;
       tbody.appendChild(tr);
     });
 
-    // Chat
+    // 3️⃣ Top players
+    const topRes = await fetch(`${URL}minecraft-top/${encodeURIComponent(currentServer)}`);
+    const topData = await topRes.json();
+    document.getElementById("top1").textContent = topData[0]?.name || "---";
+    document.getElementById("top2").textContent = topData[1]?.name || "---";
+    document.getElementById("top3").textContent = topData[2]?.name || "---";
+
+    // 4️⃣ Chat
+    const chatRes = await fetch(`${URL}minecraft-chat/${encodeURIComponent(currentServer)}`);
+    const chatData = await chatRes.json();
     const chat = document.getElementById("chat-box");
     chat.innerHTML = "";
-    (data.chat || []).forEach(m => {
+    chatData.forEach(m => {
       const div = document.createElement("div");
       div.className = "chat-message";
       div.innerHTML = `<span>${m.user}</span>: ${m.text}`;
@@ -195,10 +200,11 @@ async function atualizarTudo() {
     });
     chat.scrollTop = chat.scrollHeight;
 
-  } catch(e) {
-    console.error(e);
+  } catch (e) {
+    console.error("Erro ao atualizar:", e);
   }
 }
+
 
 // ====================
 // Ban / Unban
