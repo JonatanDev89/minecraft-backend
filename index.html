@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Void Essentials</title>
+<style>
+    body { font-family: Arial, sans-serif; background: #1e1e1e; color: #eee; padding: 20px; }
+    h1 { color: #f39c12; }
+    input, button, select { padding: 8px; margin: 5px 0; }
+    input, select { width: 200px; }
+    button { cursor: pointer; background: #f39c12; color: #fff; border: none; border-radius: 4px; }
+    table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+    th, td { padding: 10px; border: 1px solid #555; text-align: left; }
+    th { background: #333; }
+</style>
+</head>
+<body>
+
+<h1>Painel Void Essentials</h1>
+
+<h2>Banir Jogador</h2>
+<input type="text" id="banGamerTag" placeholder="Nome do jogador">
+<input type="text" id="banExecutor" placeholder="Executor">
+<input type="text" id="banMotivo" placeholder="Motivo">
+<select id="banServer">
+    <option value="Void Essentials">Void Essentials</option>
+    <option value="Snow Craft">Snow Craft</option>
+</select>
+<button onclick="banPlayer()">Banir</button>
+
+<h2>Desbanir Jogador</h2>
+<input type="text" id="unbanGamerTag" placeholder="Nome do jogador">
+<input type="text" id="unbanExecutor" placeholder="Executor">
+<select id="unbanServer">
+    <option value="Void Essentials">Void Essentials</option>
+    <option value="Snow Craft">Snow Craft</option>
+</select>
+<button onclick="unbanPlayer()">Desbanir</button>
+
+<h2>Blacklist</h2>
+<table>
+    <thead>
+        <tr>
+            <th>GamerTag</th>
+            <th>Executor</th>
+            <th>Motivo</th>
+            <th>Data</th>
+            <th>Servidor</th>
+        </tr>
+    </thead>
+    <tbody id="blacklistTable">
+    </tbody>
+</table>
+
+<script>
+const API_BASE = "http://127.0.0.1:3000";
+
+// Função para banir
+async function banPlayer() {
+    const gamerTag = document.getElementById("banGamerTag").value;
+    const executor = document.getElementById("banExecutor").value;
+    const motivo = document.getElementById("banMotivo").value;
+    const server = document.getElementById("banServer").value;
+    const data = Date.now();
+
+    try {
+        await fetch(`${API_BASE}/minecraft-banir/${encodeURIComponent(server)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ gamerTag, executor, motivo, data })
+        });
+        alert(`${gamerTag} banido com sucesso!`);
+        loadBlacklist();
+    } catch(e) { console.error(e); }
+}
+
+// Função para desbanir
+async function unbanPlayer() {
+    const gamerTag = document.getElementById("unbanGamerTag").value;
+    const executor = document.getElementById("unbanExecutor").value;
+    const server = document.getElementById("unbanServer").value;
+
+    try {
+        await fetch(`${API_BASE}/minecraft-desbanir/${encodeURIComponent(server)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ gamerTag, executor })
+        });
+        alert(`${gamerTag} desbanido com sucesso!`);
+        loadBlacklist();
+    } catch(e) { console.error(e); }
+}
+
+// Carrega a blacklist
+async function loadBlacklist() {
+    const table = document.getElementById("blacklistTable");
+    table.innerHTML = "";
+    try {
+        const res = await fetch(`${API_BASE}/blacklist`);
+        const bans = await res.json();
+        bans.forEach(b => {
+            const row = document.createElement("tr");
+            row.innerHTML = `<td>${b.gamerTag}</td><td>${b.executor}</td><td>${b.motivo}</td><td>${new Date(b.data).toLocaleString()}</td><td>${b.server}</td>`;
+            table.appendChild(row);
+        });
+    } catch(e) { console.error(e); }
+}
+
+// Atualiza a blacklist a cada 5 segundos
+setInterval(loadBlacklist, 5000);
+loadBlacklist();
+</script>
+
+</body>
+</html>
