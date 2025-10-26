@@ -1,4 +1,3 @@
-// backend.js
 import express from "express";
 import cors from "cors";
 
@@ -22,7 +21,7 @@ function getServer(name) {
             uptime: 0, 
             tps: 20,
             lastUpdate: Date.now(),
-            topPlayers: [] // <- aqui vamos armazenar top 1, 2, 3 se quiser depois
+            topPlayers: []
         };
     }
     return servers[name];
@@ -32,13 +31,8 @@ function getServer(name) {
 // ===== LISTAR SERVIDORES =====
 // =============================
 app.get("/minecraft-servers", (req, res) => {
-    try {
-        const list = Object.keys(servers);
-        res.json(list.length ? list : ["Void Essentials"]);
-    } catch (err) {
-        console.error("Erro ao carregar servidores:", err);
-        res.status(500).json({ error: "Erro ao carregar servidores." });
-    }
+    const list = Object.keys(servers);
+    res.json(list.length ? list : ["Void Essentials"]);
 });
 
 // ========================
@@ -49,8 +43,10 @@ app.get("/minecraft-servers", (req, res) => {
 app.post("/minecraft-banir/:server", (req, res) => {
     const serverName = req.params.server;
     const { gamerTag, executor, motivo } = req.body;
-    const server = getServer(serverName);
 
+    if (!gamerTag) return res.status(400).json({ error: "gamerTag é obrigatório" });
+
+    const server = getServer(serverName);
     server.bans.push({
         gamerTag,
         executor: executor || "Sistema",
@@ -65,9 +61,11 @@ app.post("/minecraft-banir/:server", (req, res) => {
 app.post("/minecraft-desbanir/:server", (req, res) => {
     const serverName = req.params.server;
     const { gamerTag } = req.body;
-    const server = getServer(serverName);
+    if (!gamerTag) return res.status(400).json({ error: "gamerTag é obrigatório" });
 
+    const server = getServer(serverName);
     server.bans = server.bans.filter(b => b.gamerTag !== gamerTag);
+
     res.json({ success: true, total: server.bans.length });
 });
 
@@ -75,7 +73,7 @@ app.post("/minecraft-desbanir/:server", (req, res) => {
 app.get("/minecraft-banir/:server", (req, res) => {
     const serverName = req.params.server;
     const server = getServer(serverName);
-    res.json(server.bans);
+    res.json(server.bans || []);
 });
 
 // ========================
@@ -86,12 +84,12 @@ app.get("/minecraft-banir/:server", (req, res) => {
 app.post("/minecraft-chat/:server", (req, res) => {
     const serverName = req.params.server;
     const { user, text } = req.body;
-    if (!user || !text) return res.status(400).json({ error: "User e text obrigatórios" });
+    if (!user || !text) return res.status(400).json({ error: "user e text obrigatórios" });
 
     const server = getServer(serverName);
     server.chat.push({ user, text, timestamp: Date.now() });
-
     if (server.chat.length > 100) server.chat.shift();
+
     res.json({ success: true });
 });
 
@@ -99,14 +97,14 @@ app.post("/minecraft-chat/:server", (req, res) => {
 app.get("/minecraft-chat/:server", (req, res) => {
     const serverName = req.params.server;
     const server = getServer(serverName);
-    res.json(server.chat);
+    res.json(server.chat || []);
 });
 
 // =============================
-// === ATUALIZAÇÃO DE STATUS ===
+// === STATUS / PLAYERS ONLINE ===
 // =============================
 
-// Minecraft envia dados reais (ex: players online)
+// Atualizar status
 app.post("/minecraft-players/:server", (req, res) => {
     const serverName = req.params.server;
     const { online, uptime, tps } = req.body;
@@ -121,37 +119,40 @@ app.post("/minecraft-players/:server", (req, res) => {
     res.json({ success: true, playersOnline: server.playersOnline });
 });
 
-// Consultar status atual
+// Consultar status
 app.get("/minecraft-players/:server", (req, res) => {
     const serverName = req.params.server;
     const server = getServer(serverName);
 
     res.json({
-        online: server.playersOnline,
-        uptime: `${server.uptime}h`,
-        tps: server.tps,
-        lastUpdate: new Date(server.lastUpdate).toLocaleTimeString()
+        online: server.playersOnline || 0,
+        uptime: `${server.uptime || 0}h`,
+        tps: server.tps || 20,
+        lastUpdate: server.lastUpdate ? new Date(server.lastUpdate).toLocaleTimeString() : "N/A"
     });
 });
 
 // =============================
-// === TOP PLAYERS POR SERVER ===
+// ===== TOP PLAYERS =====
 // =============================
 
-// Atualizar top players (ex: chamado pelo Minecraft)
+// Atualizar top players
 app.post("/minecraft-top/:server", (req, res) => {
     const serverName = req.params.server;
-    const { topPlayers } = req.body; // ex: [{name:"Player1",score:100},...]
+    const { topPlayers } = req.body;
     const server = getServer(serverName);
-    server.topPlayers = topPlayers || [];
-    res.json({ success: true });
+
+    if (!Array.isArray(topPlayers)) return res.status(400).json({ error: "topPlayers deve ser um array" });
+
+    server.topPlayers = topPlayers.slice(0, 3); // Apenas top 3
+    res.json({ success: true, topPlayers: server.topPlayers });
 });
 
-// Consultar top 1, 2 e 3
+// Consultar top players
 app.get("/minecraft-top/:server", (req, res) => {
     const serverName = req.params.server;
     const server = getServer(serverName);
-    res.json(server.topPlayers.slice(0, 3));
+    res.json(server.topPlayers || []);
 });
 
 app.listen(PORT, () => console.log(`✅ Servidor rodando em http://localhost:${PORT}`));
