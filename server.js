@@ -8,13 +8,20 @@ app.use(express.json());
 
 const PORT = 3000;
 
-// Estrutura dinâmica para qualquer servidor
+// Estrutura de dados dinâmica para múltiplos servidores
 let servers = {};
 
-// Função que garante servidor criado
+// Garante que o servidor exista
 function getServer(name) {
     if (!servers[name]) {
-        servers[name] = { bans: [], chat: [], playersOnline: 0, uptime: 0, tps: 20 };
+        servers[name] = { 
+            bans: [], 
+            chat: [], 
+            playersOnline: 0, 
+            uptime: 0, 
+            tps: 20,
+            lastUpdate: Date.now()
+        };
     }
     return servers[name];
 }
@@ -29,8 +36,14 @@ app.post("/minecraft-banir/:server", (req, res) => {
     const { gamerTag, executor, motivo } = req.body;
     const server = getServer(serverName);
 
-    server.bans.push({ gamerTag, executor: executor || "Sistema", motivo: motivo || "Sem motivo", timestamp: Date.now() });
-    res.json({ success: true });
+    server.bans.push({
+        gamerTag,
+        executor: executor || "Sistema",
+        motivo: motivo || "Sem motivo",
+        timestamp: Date.now()
+    });
+
+    res.json({ success: true, total: server.bans.length });
 });
 
 // Desbanir jogador
@@ -40,7 +53,7 @@ app.post("/minecraft-desbanir/:server", (req, res) => {
     const server = getServer(serverName);
 
     server.bans = server.bans.filter(b => b.gamerTag !== gamerTag);
-    res.json({ success: true });
+    res.json({ success: true, total: server.bans.length });
 });
 
 // Listar banidos
@@ -63,9 +76,7 @@ app.post("/minecraft-chat/:server", (req, res) => {
     const server = getServer(serverName);
     server.chat.push({ user, text, timestamp: Date.now() });
 
-    // Mantém apenas últimas 100 mensagens
     if (server.chat.length > 100) server.chat.shift();
-
     res.json({ success: true });
 });
 
@@ -76,23 +87,36 @@ app.get("/minecraft-chat/:server", (req, res) => {
     res.json(server.chat);
 });
 
-// ========================
-// === PLAYERS ONLINE =====
-// ========================
+// =============================
+// === ATUALIZAÇÃO DE STATUS ===
+// =============================
+
+// Endpoint para o Minecraft enviar dados reais
+app.post("/minecraft-players/:server", (req, res) => {
+    const serverName = req.params.server;
+    const { online, uptime, tps } = req.body;
+    const server = getServer(serverName);
+
+    if (typeof online === "number") server.playersOnline = online;
+    if (typeof uptime === "number") server.uptime = uptime;
+    if (typeof tps === "number") server.tps = tps;
+
+    server.lastUpdate = Date.now();
+
+    res.json({ success: true, playersOnline: server.playersOnline });
+});
+
+// Endpoint para consultar status
 app.get("/minecraft-players/:server", (req, res) => {
     const serverName = req.params.server;
     const server = getServer(serverName);
 
-    // Simulação de jogadores online, uptime e TPS
-    server.playersOnline = Math.floor(Math.random() * 50) + 1;
-    server.uptime = server.uptime + 1; // simples incremento a cada request
-    server.tps = 20; // valor fixo ou simulado
-
     res.json({
         online: server.playersOnline,
         uptime: `${server.uptime}h`,
-        tps: server.tps
+        tps: server.tps,
+        lastUpdate: new Date(server.lastUpdate).toLocaleTimeString()
     });
 });
 
-app.listen(PORT, () => console.log(`Servidor rodando em http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`✅ Servidor rodando em http://localhost:${PORT}`));
