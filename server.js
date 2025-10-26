@@ -32,12 +32,16 @@ const saveBlacklist = () => {
 // Rotas
 // --------------------
 
+// Rota raiz para teste do servidor
+app.get("/", (req, res) => {
+    res.send("Servidor Minecraft Backend ativo! ✅");
+});
+
 // Banir jogador
 app.post("/minecraft-banir/:server", (req, res) => {
     const server = req.params.server;
     const { gamerTag, executor, motivo, timestamp } = req.body;
 
-    // Remove se já existir para evitar duplicados
     blackList = blackList.filter(entry => !(entry.gamerTag === gamerTag && entry.server === server));
     blackList.push({ gamerTag, executor, motivo, timestamp: timestamp || Date.now(), server });
 
@@ -72,6 +76,9 @@ app.get("/blacklist", (req, res) => {
     res.json(blackList);
 });
 
+// --------------------
+// Inicialização do servidor
+// --------------------
 app.listen(PORT, () => {
     console.log(`Backend Void Essentials rodando em http://127.0.0.1:${PORT}`);
 });
