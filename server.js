@@ -17,10 +17,12 @@ const PORT = process.env.PORT || 3000;
 // Estrutura dinâmica de servidores
 let servers = {};
 
+// Normaliza nome do servidor (tudo minúsculo)
 function getServer(name) {
-  if (!servers[name]) {
-    servers[name] = {
-      name,
+  const key = name.toLowerCase();
+  if (!servers[key]) {
+    servers[key] = {
+      name, // mantém nome bonito
       bans: [],
       chat: [],
       playersOnline: 0,
@@ -30,7 +32,7 @@ function getServer(name) {
       topPlayers: []
     };
   }
-  return servers[name];
+  return servers[key];
 }
 
 // ===== SERVIR DASHBOARD =====
@@ -51,11 +53,10 @@ app.get("/minecraft-servers", (req, res) => {
 
 // ===== BAN / UNBAN =====
 app.post("/minecraft-banir/:server", (req, res) => {
-  const serverName = req.params.server;
+  const server = getServer(req.params.server);
   const { gamerTag, executor, motivo } = req.body;
   if (!gamerTag) return res.status(400).json({ error: "gamerTag obrigatório" });
 
-  const server = getServer(serverName);
   server.bans.push({
     gamerTag,
     executor: executor || "Sistema",
@@ -67,11 +68,10 @@ app.post("/minecraft-banir/:server", (req, res) => {
 });
 
 app.post("/minecraft-desbanir/:server", (req, res) => {
-  const serverName = req.params.server;
+  const server = getServer(req.params.server);
   const { gamerTag } = req.body;
   if (!gamerTag) return res.status(400).json({ error: "gamerTag obrigatório" });
 
-  const server = getServer(serverName);
   server.bans = server.bans.filter(b => b.gamerTag !== gamerTag);
   res.json({ success: true, total: server.bans.length });
 });
@@ -128,6 +128,7 @@ app.post("/minecraft-top/:server", (req, res) => {
   const server = getServer(req.params.server);
   const { topPlayers } = req.body;
   if (!Array.isArray(topPlayers)) return res.status(400).json({ error: "topPlayers deve ser um array" });
+
   server.topPlayers = topPlayers.slice(0,3);
   res.json({ success: true, topPlayers: server.topPlayers });
 });
