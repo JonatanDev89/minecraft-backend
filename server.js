@@ -1,84 +1,95 @@
-import express from "express";
-import bodyParser from "body-parser";
-import cors from "cors";
-import fs from "fs";
-import path from "path";
+const URL = "https://minecraft-backend-xevp.onrender.com/";
+const server = "Void Essentials";
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-const FILE = path.resolve("./blacklist.json");
+const lista = document.getElementById("blacklist");
+const chatBox = document.getElementById("chat-box");
+const chatMsg = document.getElementById("chat-msg");
 
-app.use(bodyParser.json());
-app.use(cors());
-
-// Carrega blacklist do arquivo
-let blackList = [];
-if (fs.existsSync(FILE)) {
+// ==========================
+// === BANIMENTO / DESBAN ===
+// ==========================
+async function carregarBlacklist() {
     try {
-        blackList = JSON.parse(fs.readFileSync(FILE));
-        console.log(`[BACKEND] Blacklist carregada com ${blackList.length} registros`);
-    } catch (err) {
-        console.error("Erro ao carregar blacklist:", err);
-        blackList = [];
+        const res = await fetch(`${URL}minecraft-banir/${encodeURIComponent(server)}`);
+        const bans = await res.json();
+        lista.innerHTML = "";
+        bans.forEach(b => {
+            const tr = document.createElement("tr");
+            const date = new Date(b.timestamp);
+            tr.innerHTML = `
+                <td>${b.gamerTag}</td>
+                <td>${b.motivo}</td>
+                <td>${b.executor}</td>
+                <td>${date.toLocaleString("pt-BR")}</td>
+            `;
+            lista.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Erro ao carregar blacklist:", e);
     }
 }
 
-// Função para salvar blacklist no arquivo
-const saveBlacklist = () => {
-    fs.writeFileSync(FILE, JSON.stringify(blackList, null, 2));
+document.getElementById("ban-button").onclick = async () => {
+    const gamerTag = document.getElementById("ban-gamertag").value;
+    const motivo = document.getElementById("ban-motivo").value || "Sem motivo";
+    await fetch(`${URL}minecraft-banir/${encodeURIComponent(server)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gamerTag, executor: "Painel", motivo })
+    });
+    await carregarBlacklist();
 };
 
-// --------------------
-// Rotas
-// --------------------
+document.getElementById("unban-button").onclick = async () => {
+    const gamerTag = document.getElementById("unban-gamertag").value;
+    await fetch(`${URL}minecraft-desbanir/${encodeURIComponent(server)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gamerTag, executor: "Painel" })
+    });
+    await carregarBlacklist();
+};
 
-// Rota raiz para teste do servidor
-app.get("/", (req, res) => {
-    res.send("Servidor Minecraft Backend ativo! ✅");
-});
+// ==========================
+// ====== CHAT DO JOGO ======
+// ==========================
+async function carregarChat() {
+    try {
+        const res = await fetch(`${URL}minecraft-chat/${encodeURIComponent(server)}`);
+        const mensagens = await res.json();
+        chatBox.innerHTML = "";
+        mensagens.forEach(m => {
+            const div = document.createElement("div");
+            div.classList.add("chat-message");
+            div.innerHTML = `<span style="color:#00aaff;">${m.user}</span>: ${m.text}`;
+            chatBox.appendChild(div);
+        });
+        chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (e) {
+        console.error("Erro ao carregar chat:", e);
+    }
+}
 
-// Banir jogador
-app.post("/minecraft-banir/:server", (req, res) => {
-    const server = req.params.server;
-    const { gamerTag, executor, motivo, timestamp } = req.body;
+document.getElementById("chat-send").onclick = async () => {
+    const mensagem = chatMsg.value.trim();
+    if (!mensagem) return;
 
-    blackList = blackList.filter(entry => !(entry.gamerTag === gamerTag && entry.server === server));
-    blackList.push({ gamerTag, executor, motivo, timestamp: timestamp || Date.now(), server });
+    await fetch(`${URL}minecraft-chat/${encodeURIComponent(server)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: "Painel", text: mensagem })
+    });
 
-    saveBlacklist();
-    console.log(`[BAN] ${gamerTag} banido por ${executor} | Motivo: ${motivo} | Servidor: ${server}`);
-    res.json({ status: "ok", action: "ban", gamerTag });
-});
+    chatMsg.value = "";
+    await carregarChat();
+};
 
-// Desbanir jogador
-app.post("/minecraft-desbanir/:server", (req, res) => {
-    const server = req.params.server;
-    const { gamerTag, executor } = req.body;
+// ==========================
+// ===== ATUALIZAÇÕES =======
+// ==========================
+carregarBlacklist();
+carregarChat();
 
-    const beforeCount = blackList.length;
-    blackList = blackList.filter(entry => !(entry.gamerTag === gamerTag && entry.server === server));
-    const afterCount = blackList.length;
-
-    saveBlacklist();
-    console.log(`[UNBAN] ${gamerTag} desbanido por ${executor} | Servidor: ${server} | Removed: ${beforeCount - afterCount}`);
-    res.json({ status: "ok", action: "unban", gamerTag });
-});
-
-// Pegar blacklist de um servidor
-app.get("/minecraft-banir/:server", (req, res) => {
-    const server = req.params.server;
-    const serverBans = blackList.filter(b => b.server === server);
-    res.json(serverBans);
-});
-
-// Lista completa (debug)
-app.get("/blacklist", (req, res) => {
-    res.json(blackList);
-});
-
-// --------------------
-// Inicialização do servidor
-// --------------------
-app.listen(PORT, () => {
-    console.log(`Backend Void Essentials rodando em http://127.0.0.1:${PORT}`);
-});
+// Atualiza automaticamente
+setInterval(carregarBlacklist, 10000);
+setInterval(carregarChat, 5000);
