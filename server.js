@@ -1,95 +1,98 @@
-const URL = "https://minecraft-backend-xevp.onrender.com/";
-const server = "Void Essentials";
+// backend.js
+import express from "express";
+import cors from "cors";
 
-const lista = document.getElementById("blacklist");
-const chatBox = document.getElementById("chat-box");
-const chatMsg = document.getElementById("chat-msg");
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-// ==========================
-// === BANIMENTO / DESBAN ===
-// ==========================
-async function carregarBlacklist() {
-    try {
-        const res = await fetch(`${URL}minecraft-banir/${encodeURIComponent(server)}`);
-        const bans = await res.json();
-        lista.innerHTML = "";
-        bans.forEach(b => {
-            const tr = document.createElement("tr");
-            const date = new Date(b.timestamp);
-            tr.innerHTML = `
-                <td>${b.gamerTag}</td>
-                <td>${b.motivo}</td>
-                <td>${b.executor}</td>
-                <td>${date.toLocaleString("pt-BR")}</td>
-            `;
-            lista.appendChild(tr);
-        });
-    } catch (e) {
-        console.error("Erro ao carregar blacklist:", e);
+const PORT = 3000;
+
+// Estrutura dinâmica para qualquer servidor
+let servers = {};
+
+// Função que garante servidor criado
+function getServer(name) {
+    if (!servers[name]) {
+        servers[name] = { bans: [], chat: [], playersOnline: 0, uptime: 0, tps: 20 };
     }
+    return servers[name];
 }
 
-document.getElementById("ban-button").onclick = async () => {
-    const gamerTag = document.getElementById("ban-gamertag").value;
-    const motivo = document.getElementById("ban-motivo").value || "Sem motivo";
-    await fetch(`${URL}minecraft-banir/${encodeURIComponent(server)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gamerTag, executor: "Painel", motivo })
+// ========================
+// ===== BAN / UNBAN ======
+// ========================
+
+// Banir jogador
+app.post("/minecraft-banir/:server", (req, res) => {
+    const serverName = req.params.server;
+    const { gamerTag, executor, motivo } = req.body;
+    const server = getServer(serverName);
+
+    server.bans.push({ gamerTag, executor: executor || "Sistema", motivo: motivo || "Sem motivo", timestamp: Date.now() });
+    res.json({ success: true });
+});
+
+// Desbanir jogador
+app.post("/minecraft-desbanir/:server", (req, res) => {
+    const serverName = req.params.server;
+    const { gamerTag } = req.body;
+    const server = getServer(serverName);
+
+    server.bans = server.bans.filter(b => b.gamerTag !== gamerTag);
+    res.json({ success: true });
+});
+
+// Listar banidos
+app.get("/minecraft-banir/:server", (req, res) => {
+    const serverName = req.params.server;
+    const server = getServer(serverName);
+    res.json(server.bans);
+});
+
+// ========================
+// ===== CHAT SERVER ======
+// ========================
+
+// Enviar mensagem
+app.post("/minecraft-chat/:server", (req, res) => {
+    const serverName = req.params.server;
+    const { user, text } = req.body;
+    if (!user || !text) return res.status(400).json({ error: "User e text obrigatórios" });
+
+    const server = getServer(serverName);
+    server.chat.push({ user, text, timestamp: Date.now() });
+
+    // Mantém apenas últimas 100 mensagens
+    if (server.chat.length > 100) server.chat.shift();
+
+    res.json({ success: true });
+});
+
+// Listar chat
+app.get("/minecraft-chat/:server", (req, res) => {
+    const serverName = req.params.server;
+    const server = getServer(serverName);
+    res.json(server.chat);
+});
+
+// ========================
+// === PLAYERS ONLINE =====
+// ========================
+app.get("/minecraft-players/:server", (req, res) => {
+    const serverName = req.params.server;
+    const server = getServer(serverName);
+
+    // Simulação de jogadores online, uptime e TPS
+    server.playersOnline = Math.floor(Math.random() * 50) + 1;
+    server.uptime = server.uptime + 1; // simples incremento a cada request
+    server.tps = 20; // valor fixo ou simulado
+
+    res.json({
+        online: server.playersOnline,
+        uptime: `${server.uptime}h`,
+        tps: server.tps
     });
-    await carregarBlacklist();
-};
+});
 
-document.getElementById("unban-button").onclick = async () => {
-    const gamerTag = document.getElementById("unban-gamertag").value;
-    await fetch(`${URL}minecraft-desbanir/${encodeURIComponent(server)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gamerTag, executor: "Painel" })
-    });
-    await carregarBlacklist();
-};
-
-// ==========================
-// ====== CHAT DO JOGO ======
-// ==========================
-async function carregarChat() {
-    try {
-        const res = await fetch(`${URL}minecraft-chat/${encodeURIComponent(server)}`);
-        const mensagens = await res.json();
-        chatBox.innerHTML = "";
-        mensagens.forEach(m => {
-            const div = document.createElement("div");
-            div.classList.add("chat-message");
-            div.innerHTML = `<span style="color:#00aaff;">${m.user}</span>: ${m.text}`;
-            chatBox.appendChild(div);
-        });
-        chatBox.scrollTop = chatBox.scrollHeight;
-    } catch (e) {
-        console.error("Erro ao carregar chat:", e);
-    }
-}
-
-document.getElementById("chat-send").onclick = async () => {
-    const mensagem = chatMsg.value.trim();
-    if (!mensagem) return;
-
-    await fetch(`${URL}minecraft-chat/${encodeURIComponent(server)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user: "Painel", text: mensagem })
-    });
-
-    chatMsg.value = "";
-    await carregarChat();
-};
-
-// ==========================
-// ===== ATUALIZAÇÕES =======
-// ==========================
-carregarBlacklist();
-carregarChat();
-
-// Atualiza automaticamente
-setInterval(carregarBlacklist, 10000);
-setInterval(carregarChat, 5000);
+app.listen(PORT, () => console.log(`Servidor rodando em http://localhost:${PORT}`));
