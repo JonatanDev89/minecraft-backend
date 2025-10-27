@@ -7,24 +7,21 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Para servir HTML estático
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
-
-// Estrutura dinâmica de servidores
 let servers = {};
 
-// Normaliza nome do servidor (tudo minúsculo)
 function getServer(name) {
   const key = name.toLowerCase();
   if (!servers[key]) {
     servers[key] = {
-      name, // mantém nome bonito
+      name,
       bans: [],
       chat: [],
+      players: [], // agora guarda info de cada jogador
       playersOnline: 0,
       uptime: 0,
       tps: 20,
@@ -35,7 +32,7 @@ function getServer(name) {
   return servers[key];
 }
 
-// ===== SERVIR DASHBOARD =====
+// ===== DASHBOARD =====
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
@@ -98,13 +95,16 @@ app.get("/minecraft-chat/:server", (req, res) => {
   res.json(server.chat || []);
 });
 
-// ===== STATUS =====
+// ===== STATUS + PLAYERS =====
 app.post("/minecraft-players/:server", (req, res) => {
   const server = getServer(req.params.server);
-  const { online, uptime, tps } = req.body;
+  const { online, uptime, tps, playerData } = req.body;
+
   if (typeof online === "number") server.playersOnline = online;
   if (typeof uptime === "number") server.uptime = uptime;
   if (typeof tps === "number") server.tps = tps;
+  if (Array.isArray(playerData)) server.players = playerData;
+
   server.lastUpdate = Date.now();
 
   res.json({ success: true, playersOnline: server.playersOnline });
@@ -119,6 +119,7 @@ app.get("/minecraft-players/:server", (req, res) => {
     lastUpdate: server.lastUpdate ? new Date(server.lastUpdate).toLocaleTimeString() : "N/A",
     banList: server.bans,
     chat: server.chat,
+    players: server.players,
     topPlayers: server.topPlayers
   });
 });
