@@ -21,7 +21,7 @@ function getServer(name) {
       name,
       bans: [],
       chat: [],
-      players: [],        // players com inventário
+      players: [],        // guarda info de cada jogador com inventário
       playersOnline: 0,
       uptime: 0,
       tps: 20,
@@ -99,7 +99,7 @@ app.post("/minecraft-players/:server", (req, res) => {
   if (typeof online === "number") server.playersOnline = online;
   if (typeof uptime === "number") server.uptime = uptime;
   if (typeof tps === "number") server.tps = tps;
-  if (Array.isArray(playerData)) server.players = playerData;
+  if (Array.isArray(playerData)) server.players = playerData; // salva inventário e tags
 
   server.lastUpdate = Date.now();
   res.json({ success: true, playersOnline: server.playersOnline });
@@ -114,7 +114,7 @@ app.get("/minecraft-players/:server", (req, res) => {
     lastUpdate: server.lastUpdate ? new Date(server.lastUpdate).toLocaleTimeString() : "N/A",
     banList: server.bans,
     chat: server.chat,
-    players: server.players,
+    players: server.players,       // agora inclui inventário completo
     topPlayers: server.topPlayers
   });
 });
