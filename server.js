@@ -21,7 +21,7 @@ function getServer(name) {
       name,
       bans: [],
       chat: [],
-      players: [],
+      players: [],        // players com inventário
       playersOnline: 0,
       uptime: 0,
       tps: 20,
@@ -33,11 +33,9 @@ function getServer(name) {
 }
 
 // ===== DASHBOARD =====
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
-// ===== SERVIDORES =====
+// ===== LISTA SERVIDORES =====
 app.get("/minecraft-servers", (req, res) => {
   const list = Object.values(servers).map(s => ({
     name: s.name,
@@ -45,7 +43,7 @@ app.get("/minecraft-servers", (req, res) => {
     bans: s.bans.length,
     tps: s.tps
   }));
-  res.json(list.length ? list : [{ name: "Void Essentials", online:0, bans:0, tps:20 }]);
+  res.json(list.length ? list : [{ name: "Void Essentials", online: 0, bans: 0, tps: 20 }]);
 });
 
 // ===== BAN / UNBAN =====
@@ -60,7 +58,6 @@ app.post("/minecraft-banir/:server", (req, res) => {
     motivo: motivo || "Sem motivo",
     timestamp: Date.now()
   });
-
   res.json({ success: true, total: server.bans.length });
 });
 
@@ -94,7 +91,7 @@ app.get("/minecraft-chat/:server", (req, res) => {
   res.json(server.chat || []);
 });
 
-// ===== STATUS + PLAYERS =====
+// ===== STATUS / PLAYERS =====
 app.post("/minecraft-players/:server", (req, res) => {
   const server = getServer(req.params.server);
   const { online, uptime, tps, playerData } = req.body;
@@ -105,7 +102,6 @@ app.post("/minecraft-players/:server", (req, res) => {
   if (Array.isArray(playerData)) server.players = playerData;
 
   server.lastUpdate = Date.now();
-
   res.json({ success: true, playersOnline: server.playersOnline });
 });
 
@@ -129,7 +125,7 @@ app.post("/minecraft-top/:server", (req, res) => {
   const { topPlayers } = req.body;
   if (!Array.isArray(topPlayers)) return res.status(400).json({ error: "topPlayers deve ser um array" });
 
-  server.topPlayers = topPlayers.slice(0,3);
+  server.topPlayers = topPlayers.slice(0, 3);
   res.json({ success: true, topPlayers: server.topPlayers });
 });
 
