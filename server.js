@@ -7,6 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ===== PATH FIX =====
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(express.static(__dirname));
@@ -14,6 +15,7 @@ app.use(express.static(__dirname));
 const PORT = process.env.PORT || 3000;
 let servers = {};
 
+// ===== Função base =====
 function getServer(name) {
   const key = name.toLowerCase();
   if (!servers[key]) {
@@ -31,10 +33,12 @@ function getServer(name) {
   return servers[key];
 }
 
-// ===== DASHBOARD =====
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+// ===== PÁGINA INICIAL =====
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
 
-// ===== LISTA SERVIDORES =====
+// ===== LISTA DE SERVIDORES =====
 app.get("/minecraft-servers", (req, res) => {
   const list = Object.values(servers).map(s => ({
     name: s.name,
@@ -45,7 +49,7 @@ app.get("/minecraft-servers", (req, res) => {
   res.json(list.length ? list : [{ name: "Void Essentials", online: 0, bans: 0, tps: 20 }]);
 });
 
-// ===== BAN / UNBAN =====
+// ===== BANIR =====
 app.post("/minecraft-banir/:server", (req, res) => {
   const server = getServer(req.params.server);
   const { gamerTag, executor, motivo } = req.body;
@@ -57,9 +61,11 @@ app.post("/minecraft-banir/:server", (req, res) => {
     motivo: motivo || "Sem motivo",
     timestamp: Date.now()
   });
+
   res.json({ success: true, total: server.bans.length });
 });
 
+// ===== DESBANIR =====
 app.post("/minecraft-desbanir/:server", (req, res) => {
   const server = getServer(req.params.server);
   const { gamerTag } = req.body;
@@ -69,6 +75,7 @@ app.post("/minecraft-desbanir/:server", (req, res) => {
   res.json({ success: true, total: server.bans.length });
 });
 
+// ===== LISTAR BANS =====
 app.get("/minecraft-banir/:server", (req, res) => {
   const server = getServer(req.params.server);
   res.json(server.bans || []);
@@ -131,4 +138,7 @@ app.get("/minecraft-top/:server", (req, res) => {
   res.json(server.topPlayers || []);
 });
 
-app.listen(PORT, () => console.log(`✅ Servidor rodando em http://localhost:${PORT}`));
+// ===== INICIAR SERVIDOR =====
+app.listen(PORT, () => {
+  console.log(`✅ Servidor iniciado na porta ${PORT}`);
+});
