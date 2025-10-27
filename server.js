@@ -21,7 +21,7 @@ function getServer(name) {
       name,
       bans: [],
       chat: [],
-      players: [], // agora guarda info de cada jogador
+      players: [],
       playersOnline: 0,
       uptime: 0,
       tps: 20,
@@ -37,7 +37,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// ===== LISTAR SERVIDORES =====
+// ===== SERVIDORES =====
 app.get("/minecraft-servers", (req, res) => {
   const list = Object.values(servers).map(s => ({
     name: s.name,
@@ -86,7 +86,6 @@ app.post("/minecraft-chat/:server", (req, res) => {
 
   server.chat.push({ user, text, timestamp: Date.now() });
   if (server.chat.length > 100) server.chat.shift();
-
   res.json({ success: true });
 });
 
