@@ -1,137 +1,200 @@
-import express from "express";
-import cors from "cors";
-
+const express = require('express');
+const cors = require('cors');
 const app = express();
-app.use(cors());
+const PORT = 3000;
+
+// Configuração CORS mais permissiva
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-const PORT = process.env.PORT || 3000;
-let servers = {};
+// Banco de dados em memória
+let keys = [];
+let users = [];
 
-// ===== Função base =====
-function getServer(name) {
-  const key = name.toLowerCase();
-  if (!servers[key]) {
-    servers[key] = {
-      name,
-      bans: [],
-      chat: [],
-      playersOnline: 0,
-      uptime: 0,
-      tps: 20,
-      lastUpdate: Date.now(),
-      topPlayers: []
-    };
-  }
-  return servers[key];
+// Gerar key
+function generateKey() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let key = 'zryder';
+    for (let i = 0; i < 26; i++) {
+        key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return key;
 }
 
-// ===== PÁGINA INICIAL =====
-app.get("/", (req, res) => {
-  res.send("✅ Backend Minecraft Void Essentials ativo e rodando!");
+// Middleware admin
+function authAdmin(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (authHeader === 'admin123') {
+        next();
+    } else {
+        res.status(401).json({ success: false, error: 'Não autorizado' });
+    }
+}
+
+// Rota de teste
+app.get('/api/test', (req, res) => {
+    res.json({ success: true, message: 'API funcionando!' });
 });
 
-// ===== LISTA DE SERVIDORES =====
-app.get("/minecraft-servers", (req, res) => {
-  const list = Object.values(servers).map(s => ({
-    name: s.name,
-    online: s.playersOnline,
-    bans: s.bans.length,
-    tps: s.tps
-  }));
-  res.json(list.length ? list : [{ name: "Void Essentials", online: 0, bans: 0, tps: 20 }]);
+// Gerar key
+app.post('/api/generate-key', authAdmin, (req, res) => {
+    try {
+        const { duration, maxUses } = req.body;
+        
+        const newKey = {
+            key: generateKey(),
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + (duration * 1000)),
+            maxUses: maxUses || 1,
+            usedCount: 0,
+            isValid: true
+        };
+
+        keys.push(newKey);
+        res.json({ success: true, key: newKey.key });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
-// ===== BANIR =====
-app.post("/minecraft-banir/:server", (req, res) => {
-  const server = getServer(req.params.server);
-  const { gamerTag, executor, motivo } = req.body;
-  if (!gamerTag) return res.status(400).json({ error: "gamerTag obrigatório" });
-
-  server.bans.push({
-    gamerTag,
-    executor: executor || "Sistema",
-    motivo: motivo || "Sem motivo",
-    timestamp: Date.now()
-  });
-
-  res.json({ success: true, total: server.bans.length });
+// Validar key
+app.post('/api/validate-key', (req, res) => {
+    try {
+        const { key } = req.body;
+        const keyData = keys.find(k => k.key === key);
+        
+        if (!keyData) {
+            return res.json({ success: false, message: 'Key não encontrada' });
+        }
+        
+        if (!keyData.isValid) {
+            return res.json({ success: false, message: 'Key inválida' });
+        }
+        
+        if (keyData.usedCount >= keyData.maxUses) {
+            keyData.isValid = false;
+            return res.json({ success: false, message: 'Key já usada' });
+        }
+        
+        if (new Date() > keyData.expiresAt) {
+            keyData.isValid = false;
+            return res.json({ success: false, message: 'Key expirada' });
+        }
+        
+        res.json({ 
+            success: true, 
+            message: 'Key válida',
+            usesLeft: keyData.maxUses - keyData.usedCount 
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
-// ===== DESBANIR =====
-app.post("/minecraft-desbanir/:server", (req, res) => {
-  const server = getServer(req.params.server);
-  const { gamerTag } = req.body;
-  if (!gamerTag) return res.status(400).json({ error: "gamerTag obrigatório" });
-
-  server.bans = server.bans.filter(b => b.gamerTag !== gamerTag);
-  res.json({ success: true, total: server.bans.length });
+// Login
+app.post('/api/keyauth/login', (req, res) => {
+    try {
+        const { username, password } = req.body;
+        
+        if (!username || !password) {
+            return res.json({ success: false, message: 'Usuário e senha são obrigatórios' });
+        }
+        
+        const user = users.find(u => u.username === username && u.password === password);
+        
+        if (user) {
+            res.json({ success: true, message: 'Login realizado com sucesso' });
+        } else {
+            res.json({ success: false, message: 'Usuário ou senha incorretos' });
+        }
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
-// ===== LISTAR BANS =====
-app.get("/minecraft-banir/:server", (req, res) => {
-  const server = getServer(req.params.server);
-  res.json(server.bans || []);
+// Registro
+app.post('/api/keyauth/register', (req, res) => {
+    try {
+        const { username, password, key } = req.body;
+        
+        if (!username || !password || !key) {
+            return res.json({ success: false, message: 'Todos os campos são obrigatórios' });
+        }
+        
+        // Verificar key
+        const keyData = keys.find(k => k.key === key);
+        if (!keyData) {
+            return res.json({ success: false, message: 'Key não encontrada' });
+        }
+        
+        if (!keyData.isValid) {
+            return res.json({ success: false, message: 'Key já foi utilizada' });
+        }
+        
+        if (keyData.usedCount >= keyData.maxUses) {
+            keyData.isValid = false;
+            return res.json({ success: false, message: 'Key já foi utilizada' });
+        }
+        
+        // Verificar usuário
+        if (users.find(u => u.username === username)) {
+            return res.json({ success: false, message: 'Usuário já existe' });
+        }
+        
+        // Registrar usuário
+        keyData.usedCount++;
+        if (keyData.usedCount >= keyData.maxUses) {
+            keyData.isValid = false;
+        }
+        
+        users.push({ username, password, key, createdAt: new Date() });
+        res.json({ success: true, message: 'Registro realizado com sucesso' });
+        
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
-// ===== CHAT =====
-app.post("/minecraft-chat/:server", (req, res) => {
-  const server = getServer(req.params.server);
-  const { user, text } = req.body;
-  if (!user || !text) return res.status(400).json({ error: "user e text obrigatórios" });
-
-  server.chat.push({ user, text, timestamp: Date.now() });
-  if (server.chat.length > 100) server.chat.shift();
-  res.json({ success: true });
+// Listar keys
+app.get('/api/keys', authAdmin, (req, res) => {
+    res.json(keys);
 });
 
-app.get("/minecraft-chat/:server", (req, res) => {
-  const server = getServer(req.params.server);
-  res.json(server.chat || []);
+// Deletar key
+app.delete('/api/keys/:key', authAdmin, (req, res) => {
+    const key = req.params.key;
+    const index = keys.findIndex(k => k.key === key);
+    
+    if (index !== -1) {
+        keys.splice(index, 1);
+        res.json({ success: true, message: 'Key deletada' });
+    } else {
+        res.status(404).json({ success: false, error: 'Key não encontrada' });
+    }
 });
 
-// ===== STATUS =====
-app.post("/minecraft-players/:server", (req, res) => {
-  const server = getServer(req.params.server);
-  const { online, uptime, tps } = req.body;
-
-  if (typeof online === "number") server.playersOnline = online;
-  if (typeof uptime === "number") server.uptime = uptime;
-  if (typeof tps === "number") server.tps = tps;
-  server.lastUpdate = Date.now();
-
-  res.json({ success: true, playersOnline: server.playersOnline });
+// Estatísticas
+app.get('/api/stats', authAdmin, (req, res) => {
+    res.json({
+        success: true,
+        totalKeys: keys.length,
+        validKeys: keys.filter(k => k.isValid).length,
+        usedKeys: keys.filter(k => !k.isValid).length,
+        totalUsers: users.length
+    });
 });
 
-app.get("/minecraft-players/:server", (req, res) => {
-  const server = getServer(req.params.server);
-  res.json({
-    online: server.playersOnline || 0,
-    uptime: `${server.uptime || 0}h`,
-    tps: server.tps || 20,
-    lastUpdate: server.lastUpdate ? new Date(server.lastUpdate).toLocaleTimeString() : "N/A",
-    banList: server.bans,
-    chat: server.chat,
-    topPlayers: server.topPlayers
-  });
-});
+// Servir arquivos estáticos
+app.use(express.static('.'));
 
-// ===== TOP PLAYERS =====
-app.post("/minecraft-top/:server", (req, res) => {
-  const server = getServer(req.params.server);
-  const { topPlayers } = req.body;
-  if (!Array.isArray(topPlayers)) return res.status(400).json({ error: "topPlayers deve ser um array" });
-
-  server.topPlayers = topPlayers.slice(0, 3);
-  res.json({ success: true, topPlayers: server.topPlayers });
-});
-
-app.get("/minecraft-top/:server", (req, res) => {
-  const server = getServer(req.params.server);
-  res.json(server.topPlayers || []);
-});
-
-// ===== INICIAR SERVIDOR =====
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Servidor iniciado na porta ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Servidor rodando: http://localhost:${PORT}`);
+    console.log(`🔑 Painel admin: http://localhost:${PORT}/index.html`);
+    console.log(`🔄 Teste da API: http://localhost:${PORT}/api/test`);
 });
